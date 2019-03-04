@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:metadata="http://www.mulesoft.org/schema/mule/metadata" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration"/>
+    <flow name="trailFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/" doc:name="HTTP"/>
+        <dw:transform-message doc:name="Transform Message" metadata:id="a9e2d852-3c2d-42e7-b5cb-88cda3b3c587">
+            <dw:input-payload doc:sample="D:\file\demo.csv" mimeType="application/csv">
+                <dw:reader-property name="separator" value="|"/>
+            </dw:input-payload>
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/java
+---
+payload map ((payload01 , indexOfPayload01) -> {
+	AccountNumber: payload01.AccountNumber,
+	BillingCity: upper payload01.BillingCity,
+	BillingCountry: upper payload01.BillingCountry,
+	billingcountrystatus: "valid" when payload01.BillingCountry == "India" otherwise "invalid",
+	Description: (trim payload01.Description splitBy " ")[0],
+	Fax: payload01.Fax as :number,
+	Name: upper payload01.Name,
+	Phone: payload01.Phone,
+	phonestatus: "valid" when  payload01.Phone[0..9] != null otherwise "invalid"
+		
+})]]></dw:set-payload>
+        </dw:transform-message>
+        <foreach doc:name="For Each">
+            <logger message="===============#[payload.phonestatus]" level="INFO" doc:name="Logger"/>
+            <scatter-gather doc:name="Scatter-Gather">
+                <processor-chain>
+                    <expression-filter expression="#[payload.phonestatus == &quot;valid&quot; and payload.billingcountrystatus == &quot;valid&quot;]" doc:name="valid Expression"/>
+                    <logger message="valid :: #[payload]" level="INFO" doc:name="valid"/>
+                </processor-chain>
+                <processor-chain>
+                    <expression-filter expression="#[payload.phonestatus == &quot;invalid&quot; || payload.billingcountrystatus == &quot;invalid&quot;]" doc:name="Invalid Expression"/>
+                    <logger message="Invalid :: #[payload]" level="INFO" doc:name="Invalid"/>
+                </processor-chain>
+            </scatter-gather>
+        </foreach>
+    </flow>
+</mule>
